@@ -19,7 +19,7 @@ vue 3.0 添加setup  主要用于组合API
      *         如果想更新，可以通过重新复制的方式 也就是属性值是一个对象  不能用属性值中set方法  必须用 = 赋值
      * ref：一定要注意.value来获取数据
      *    监听基本属性类型  也能监听对象  但是推荐用reactive监听对象
-     *    本质：还是reactive 给ref方法传递一个值，ref会将其转化成reactive ref(18) => reactive({value: 18}) reactive 会默认添加一个属性value
+     *    本质：还是reactive. 给ref方法传递一个值，ref会将其转化成reactive ref(18) => reactive({value: 18}) reactive 会默认添加一个属性value
      *    所以直接修改ref定义的变量不行(如 age = 12) 必须 age.value = 12
      *    注意：如果是通过ref创建的数据在<template> 不用通过.value获取 vue会自动添加.value获取数据
      *
@@ -107,3 +107,124 @@ vue 3.0 添加setup  主要用于组合API
         });
 
      }
+
+
+  $emit  提交方法    在子组件中name 同下 emits: ['on-change'] 可以没有 但是会报警告
+  在setup(props, ctx) { // ctx 俄日上下文 或者{emit}
+    ctx.emit('on-change')
+  }
+
+  注意： setup 参数props 不能解构 也不能在下面解构  会丢失响应式   注意解构对响应式的影响
+
+
+  watchEffect 最初执行一次  变化也监听   监听所有变量  自动监听依赖(数据)改变  并且在组件被卸载的时候停止
+              会返回一个停止函数    执行stop函数  就停止监听
+              回调函数中有一个参数 onInvalidate 这也是一个回调函数  执行在循序是在改变之前和stop之前执行
+              目的是取消后面的操作  比如节流防抖
+              在beforeUpdate(所有组件更新)生命周期之前调用
+
+              第二个选项 {flush: 'pre'} 默认pre  在beforeUpdate之前调用  post 是之后调用   sync 是同步执行
+
+              获取dom 或refs的话  要在onMounted生命周期中调用   比如 refs  是要用ref 定义一个ref 和dom挂在  会调用两次
+
+              选项
+              watchEffect(() => {},
+              {
+                flush,// 规定调用顺序
+                // 在以下两个函数下debugger  但只在开发环境下有效
+                onTrack(e){}, // 被追踪到 就是依赖第一次以及后面的改变
+                onTrigger(e){} // 依赖改变的时候才执行
+              }
+              )
+
+              watchEffect具有模块化  意思就是 在setup外函数中只能监听当前函数中数据变化  也可以认为是局部监听
+
+  watch 写法
+  参数一  监听的数据项
+  参数二  监听的操作
+    watchEffect 它与 watch 的区别主要有以下几点：
+
+    不需要手动传入依赖
+    每次初始化时会执行一次回调函数来自动获取依赖  会存到队列中
+    无法获取到原值，只能得到变化后的值
+
+  watch(() => {
+    return  data;  // 监听的数据
+  }, (newVal) => {
+       数据操作
+  });
+  必须有一个特定数据来源
+  监听ref类型变量   加不加.value 取决于写法
+  watch(变量, () => {}) // 不用加  这种方式只能用于ref变量
+  watch(() => 变量.value, () => {}) // 加
+
+  监听reactive类型变量
+    watch(() => 变量.value, () => {})
+
+  监听多个
+  watch(() => {
+  return [val1.value, val2.value]},
+  ([newVal1, oldVal1], [newVal2, oldVal2]) => {
+
+  })
+
+  拥有与watchEffect一样的执行顺序和配置选项
+
+  watch(()=> data, () => {})  或者  监听一个对象  watch(state, (newVal, oldVal) => {})
+
+
+
+  setup 返回的是对象  对象的属性会放到render函数中
+
+  getCurrentInstance() 钩子  可以获取当前实例 中有一个proxy 应该可以获取到vue原型连
+
+
+  子组件中不写props  可以用ctx.attrs获取’
+
+
+  app下有一个config  app.config.globalProperties.  添加全局属性  通过getCurrentInstance();(获取当前实例) 解构出来{ctx}.调用 看set-map.vue
+  组件内部的属性优先级大于全局中属性
+
+
+  use与plugin
+    主要是在main.js中  通过app.use() 引入
+
+    reactive() 与vue 2中 Vue.observe()   只接受对象   基本类型会报警告  可以声明但不是响应式的
+
+    readonly  只读  可以套用reactive 深度监听
+
+    ref  可以监听对象   但是方式必须  obj.value.a 才能访问数据  在模板中不需要.value  会自动展开打开
+         ref数据赋值给reactive  ref数据也会自动展开
+         如 let react = ref(0)   reactive({react})
+         let arr = reactive([ref(0)])   不会展开ref 访问.value   所以 arr[0].value
+
+    unref(info) === isRef(info) ? info.value : info
+
+
+    toRef 可以创建一个ref 更多的是针对响应式对象的
+    toRefs  见ref-vue
+    isRef  判断是否是一个ref属性
+
+    compute 用法
+
+    let arr = compute(() => item.id)
+
+
+
+
+    vuex
+    // 这种写法与vue中引入类似
+   import {createNamespacedHelpers, useStore} from 'vuex'
+   const {mapState, mapActions} = createNamespacedHelpers('user');// 通过这个函数来辅助我们找到user模块
+
+   // 这种写法与this.$store.user.name 类似
+  import {useStore} from 'vuex';
+  const store = useStore();
+  let name = computed(() => store.state.user.name); // 这里注意指定user模块
+        return {
+            name,
+            // 调用mutation方法
+            store.dispatch('user/setToken') // 调用actions
+            setToken: () => store.commit('user/SET_TOKEN', new Date().getTime() / 1000),
+                                    // 这里注意指定user模块
+        }
